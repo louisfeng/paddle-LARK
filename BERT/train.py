@@ -42,7 +42,7 @@ model_g.add_arg("weight_sharing",        bool, True,                         "If
 model_g.add_arg("generate_neg_sample",   bool, True,                         "If set, randomly generate negtive samples by positive samples.")
 
 train_g = ArgumentGroup(parser, "training", "training options.")
-train_g.add_arg("epoch",             int,    100,     "Number of epoches for training.")
+train_g.add_arg("epoch",             int,    1,     "Number of epoches for training.")
 train_g.add_arg("learning_rate",     float,  0.0001,  "Learning rate used to train with warmup.")
 train_g.add_arg("lr_scheduler",      str,    "linear_warmup_decay",
                 "scheduler of learning rate.", choices=['linear_warmup_decay', 'noam_decay'])
@@ -61,7 +61,8 @@ log_g.add_arg("verbose",             bool,   False, "Whether to output verbose l
 
 data_g = ArgumentGroup(parser, "data", "Data paths, vocab paths and data processing options")
 data_g.add_arg("data_dir",            str,  "./data/train/",       "Path to training data.")
-data_g.add_arg("validation_set_dir",  str,  "./data/validation/",  "Path to validation data.")
+#data_g.add_arg("validation_set_dir",  str,  "./data/validation/",  "Path to validation data.")
+data_g.add_arg("validation_set_dir",  str,  "",  "Path to validation data.")
 data_g.add_arg("test_set_dir",        str,  None,                  "Path to test data.")
 data_g.add_arg("vocab_path",          str,  "./config/vocab.txt",  "Vocabulary path.")
 data_g.add_arg("max_seq_len",         int,  512,                   "Tokens' number of the longest seqence allowed.")
@@ -317,14 +318,23 @@ def train(args):
     build_strategy = fluid.BuildStrategy()
     build_strategy.remove_unnecessary_lock = False
 
-    train_exe = fluid.ParallelExecutor(
-        use_cuda=args.use_cuda,
-        loss_name=total_loss.name,
-        build_strategy=build_strategy,
-        exec_strategy=exec_strategy,
-        main_program=train_program,
-        num_trainers=nccl2_num_trainers,
-        trainer_id=nccl2_trainer_id)
+    # train_exe = fluid.ParallelExecutor(
+    #     use_cuda=args.use_cuda,
+    #     loss_name=total_loss.name,
+    #     build_strategy=build_strategy,
+    #     exec_strategy=exec_strategy,
+    #     main_program=train_program,
+    #     num_trainers=nccl2_num_trainers,
+    #     trainer_id=nccl2_trainer_id)
+    train_exe = fluid.Executor(place)
+    print("### TRAINING: USING SERIAL EXECUTOR ###")
+    proto_file = open("bert_startup_program.proto", "w+")
+    print(startup_prog, file=proto_file)
+    proto_file.close()
+    proto_file = open("bert_main_program.proto", "w+")
+    print(train_program, file=proto_file)
+    proto_file.close()
+    print("### PROGRAM PROTO FILE SAVED ###")
 
     if args.validation_set_dir and args.validation_set_dir != "":
         predict = predict_wrapper(
@@ -336,6 +346,8 @@ def train(args):
             fetch_list=[
                 next_sent_acc.name, mask_lm_loss.name, total_loss.name
             ])
+    else:
+        print("### NO VALIDATION ###")
 
     train_pyreader.decorate_tensor_provider(data_reader.data_generator())
     train_pyreader.start()
@@ -350,13 +362,14 @@ def train(args):
             skip_steps = args.skip_steps * nccl2_num_trainers
 
             if nccl2_trainer_id != 0:
-                train_exe.run(fetch_list=[])
+                train_exe.run(train_program, fetch_list=[])
                 continue
 
             if steps % skip_steps != 0:
-                train_exe.run(fetch_list=[])
+                train_exe.run(train_program, fetch_list=[])
             else:
                 each_next_acc, each_mask_lm_cost, each_total_cost, np_lr = train_exe.run(
+                    train_program, 
                     fetch_list=[
                         next_sent_acc.name, mask_lm_loss.name, total_loss.name,
                         scheduled_lr.name

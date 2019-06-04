@@ -250,6 +250,7 @@ class DataReader(object):
 
             def batch_reader(reader, batch_size, in_tokens):
                 batch, total_token_num, max_len = [], 0, 0
+                print("batch_size:", batch_size)
                 for parsed_line in reader():
                     token_ids, sent_ids, pos_ids, label = parsed_line
                     max_len = max(max_len, len(token_ids))
@@ -264,7 +265,7 @@ class DataReader(object):
                         yield batch, total_token_num
                         batch, total_token_num, max_len = [parsed_line], len(
                             token_ids), len(token_ids)
-
+                    print("max_len:", max_len, "tokens:", len(token_ids), "batch: ", len(batch), " " , total_token_num)
                 if len(batch) > 0:
                     yield batch, total_token_num
 

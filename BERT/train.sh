@@ -28,7 +28,7 @@ LR_RATE=1e-4
 WEIGHT_DECAY=0.01
 MAX_LEN=512
 TRAIN_DATA_DIR=data/train
-VALIDATION_DATA_DIR=data/validation
+#VALIDATION_DATA_DIR=data/validation
 CONFIG_PATH=config/bert_config.json
 VOCAB_PATH=config/vocab.txt
 
@@ -38,7 +38,7 @@ python -u ./train.py ${is_distributed}\
         --weight_sharing true\
         --batch_size ${BATCH_SIZE} \
         --data_dir ${TRAIN_DATA_DIR} \
-        --validation_set_dir ${VALIDATION_DATA_DIR} \
+#        --validation_set_dir ${VALIDATION_DATA_DIR} \
         --bert_config_path ${CONFIG_PATH} \
         --vocab_path ${VOCAB_PATH} \
         --generate_neg_sample true\
@@ -49,3 +49,4 @@ python -u ./train.py ${is_distributed}\
         --max_seq_len ${MAX_LEN} \
         --skip_steps 20 \
         --validation_steps 1000
+        --num_train_steps ${TRAIN_STEPS}
